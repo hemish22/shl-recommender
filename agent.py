@@ -61,8 +61,18 @@ def _check_injection(messages: list[dict]) -> None:
 
 load_dotenv()
 
-_client = Groq(api_key=os.environ["GROQ_API_KEY"])
+_client: Groq | None = None
 _MODEL = "llama-3.3-70b-versatile"
+
+
+def _get_client() -> Groq:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY environment variable is not set")
+        _client = Groq(api_key=api_key)
+    return _client
 
 TEST_TYPE_KEYWORDS = {
     "ability": ["A"],
@@ -283,7 +293,7 @@ Turn: {turn_count}/8.{force_note}
 
 Respond with ONLY a valid JSON object. No markdown, no extra text."""
 
-    response = _client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

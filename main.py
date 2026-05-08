@@ -3,6 +3,7 @@ FastAPI service: GET /health, POST /chat
 """
 
 import os
+import threading
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import APIKeyHeader
@@ -30,7 +31,9 @@ def _verify_api_key(key: str = Depends(_API_KEY_HEADER)):
 
 @app.on_event("startup")
 def _startup():
-    retriever._load()
+    # Load in background so uvicorn binds the port immediately.
+    # First request will block until the thread completes (retriever._load is idempotent).
+    threading.Thread(target=retriever._load, daemon=True).start()
 
 
 class Message(BaseModel):
