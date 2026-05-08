@@ -5,9 +5,9 @@ Semantic search over FAISS index of SHL assessments.
 import json
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 _model = None
 _index = None
@@ -17,7 +17,7 @@ _meta = None
 def _load():
     global _model, _index, _meta
     if _model is None:
-        _model = SentenceTransformer(MODEL_NAME)
+        _model = TextEmbedding(MODEL_NAME)
         _index = faiss.read_index("faiss.index")
         with open("index_meta.json") as f:
             _meta = json.load(f)
@@ -27,7 +27,7 @@ def search(query: str, top_k: int = 10, test_type_filter: list[str] | None = Non
     """Return top_k assessments matching query. Optionally filter by test_type codes."""
     _load()
 
-    vec = _model.encode([query], normalize_embeddings=True).astype("float32")
+    vec = np.array(list(_model.embed([query])), dtype="float32")
     # Fetch extra results to allow for post-filtering
     fetch_k = min(top_k * 5, len(_meta)) if test_type_filter else top_k
     scores, indices = _index.search(vec, fetch_k)

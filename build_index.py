@@ -7,9 +7,9 @@ Outputs: faiss.index, index_meta.json
 import json
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def build_document(item: dict) -> str:
@@ -35,11 +35,11 @@ def main():
         catalog = json.load(f)
 
     print(f"Building index for {len(catalog)} items...")
-    model = SentenceTransformer(MODEL_NAME)
+    model = TextEmbedding(MODEL_NAME)
 
     docs = [build_document(item) for item in catalog]
-    embeddings = model.encode(docs, show_progress_bar=True, normalize_embeddings=True)
-    embeddings = np.array(embeddings, dtype="float32")
+    # fastembed returns normalized embeddings (L2) by default — compatible with IndexFlatIP
+    embeddings = np.array(list(model.embed(docs)), dtype="float32")
 
     dim = embeddings.shape[1]
     index = faiss.IndexFlatIP(dim)  # inner product = cosine sim (normalized vectors)
