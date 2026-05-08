@@ -1,0 +1,14 @@
+name: Keep Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -f --max-time 30 "${{ secrets.RENDER_URL }}/health" || echo "Ping failed — service may be cold starting"
