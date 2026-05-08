@@ -7,4 +7,5 @@ faiss-cpu==1.13.2
 requests==2.33.1
 beautifulsoup4==4.14.3
 python-dotenv==1.2.2
-numpy==2.4.4
+numpy==2.4.0
+slowapi==0.1.9

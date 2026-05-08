@@ -5,11 +5,59 @@ Conversational agent: classifies intent, retrieves from FAISS, returns structure
 import json
 import os
 import re
+import unicodedata
 
 from groq import Groq
 from dotenv import load_dotenv
 
 import retriever
+
+
+class PromptInjectionError(ValueError):
+    pass
+
+
+# Patterns that signal an attempt to hijack the LLM's instructions
+_INJECTION_PATTERNS = [
+    r"ignore\s+(previous|prior|above|all)\s+instructions",
+    r"disregard\s+(previous|prior|above|all)",
+    r"forget\s+(previous|prior|above|all)",
+    r"override\s+(previous|prior|above|all)",
+    r"you\s+are\s+now\s+(a|an|the)\s+(?!shl)",
+    r"new\s+(system\s+)?instructions",
+    r"<\s*system\s*>",
+    r"\[\s*system\s*\]",
+    r"act\s+as\s+(?!an?\s+shl)",
+    r"pretend\s+(you\s+are|to\s+be)",
+    r"jailbreak",
+    r"dan\s+mode",
+    r"developer\s+mode",
+    r"prompt\s+injection",
+    r"reveal\s+(your\s+)?(system\s+)?prompt",
+    r"print\s+(your\s+)?(system\s+)?prompt",
+    r"what\s+(are|were)\s+your\s+instructions",
+    r"stop\s+being\s+an?\s+assistant",
+    r"</?(s|S)(y|Y)(s|S)(t|T)(e|E)(m|M)>",
+]
+_INJECTION_RE = re.compile("|".join(_INJECTION_PATTERNS), re.IGNORECASE)
+
+
+def _sanitize(text: str) -> str:
+    """Strip control characters and normalize unicode."""
+    text = "".join(
+        ch for ch in text
+        if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\t")
+    )
+    return text.strip()
+
+
+def _check_injection(messages: list[dict]) -> None:
+    """Raise PromptInjectionError if any user message looks like an injection attempt."""
+    for m in messages:
+        if m["role"] != "user":
+            continue
+        if _INJECTION_RE.search(m["content"]):
+            raise PromptInjectionError("Prompt injection attempt detected.")
 
 load_dotenv()
 
@@ -181,6 +229,14 @@ def chat(messages: list[dict]) -> dict:
     Takes full conversation history, returns:
     {"reply": str, "recommendations": list, "end_of_conversation": bool}
     """
+    # Sanitize all message content
+    messages = [
+        {**m, "content": _sanitize(m["content"])} for m in messages
+    ]
+
+    # Reject injection attempts before touching the LLM
+    _check_injection(messages)
+
     turn_count = len(messages)
 
     # Bug 3 fix: hard turn cap
